@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>校园绿植养护 WebGIS 管理系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="loginView" class="login-shell">
+      <section class="login-visual" aria-label="校园绿化主题图">
+        <div class="visual-copy">
+          <p>智慧校园 · 绿化巡查</p>
+          <h1>校园绿植养护 WebGIS 管理系统</h1>
+          <span>用地图记录每一处绿色生长状态</span>
+        </div>
+      </section>
+      <section class="auth-panel">
+        <div class="auth-tabs">
+          <button class="tab active" data-auth-tab="login">登录</button>
+          <button class="tab" data-auth-tab="register">注册</button>
+        </div>
+        <form id="loginForm" class="auth-form">
+          <label>用户名<input id="loginUsername" autocomplete="username" value="admin" /></label>
+          <label>密码<input id="loginPassword" type="password" autocomplete="current-password" value="admin123" /></label>
+          <label>验证码<input id="loginCaptcha" placeholder="请输入 2468" /></label>
+          <button class="primary-btn" type="submit">进入系统</button>
+          <p class="hint">演示账号：admin / admin123，student / 123456</p>
+        </form>
+        <form id="registerForm" class="auth-form hidden">
+          <label>用户名<input id="regUsername" autocomplete="username" /></label>
+          <label>昵称<input id="regNickname" /></label>
+          <label>密码<input id="regPassword" type="password" autocomplete="new-password" /></label>
+          <button class="primary-btn" type="submit">创建账号</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="appView" class="app hidden">
+      <aside class="sidebar">
+        <div class="brand">
+          <div>
+            <strong>绿植养护 GIS</strong>
+            <small>河海大学江宁校区</small>
+          </div>
+        </div>
+        <nav>
+          <button class="nav-btn active" data-view="map">地图</button>
+          <button class="nav-btn" data-view="plants">档案</button>
+          <button class="nav-btn" data-view="care">养护打卡</button>
+          <button class="nav-btn" data-view="reports">问题上报</button>
+          <button class="nav-btn" data-view="dashboard">看板</button>
+          <button class="nav-btn" data-view="profile">个人中心</button>
+          <button class="nav-btn admin-only" data-view="admin">管理后台</button>
+        </nav>
+        <div class="user-box">
+          <span id="currentUserName"></span>
+          <button id="logoutBtn">退出</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h2 id="viewTitle">绿植地图</h2>
+            <p id="viewSubtitle">查看校园绿植点位、健康状态与养护热度</p>
+          </div>
+          <button id="resetDataBtn" class="ghost-btn">恢复初始数据</button>
+        </header>
+
+        <section id="mapView" class="view active">
+          <div class="map-layout">
+            <div class="map-toolbar">
+              <label>类型
+                <select id="typeFilter">
+                  <option value="all">全部</option>
+                </select>
+              </label>
+              <label>健康状态
+                <select id="healthFilter">
+                  <option value="all">全部</option>
+                  <option value="healthy">健康</option>
+                  <option value="watch">需关注</option>
+                  <option value="sick">病虫害</option>
+                  <option value="dry">缺水</option>
+                </select>
+              </label>
+              <label>底图
+                <select id="baseLayerSelect">
+                  <option value="green">生态底图</option>
+                  <option value="satellite">影像风格</option>
+                  <option value="plain">简洁底图</option>
+                </select>
+              </label>
+              <label class="switch"><input id="heatToggle" type="checkbox" checked /> 热力图</label>
+              <button id="newPlantReportBtn" class="secondary-btn">上报新绿植</button>
+            </div>
+            <div id="campusMap" class="campus-map real-map layer-green">
+              <div id="leafletMap" class="leaflet-map" aria-label="河海大学江宁校区交互地图"></div>
+              <div id="mapFallback" class="map-fallback hidden">正在加载真实地图...</div>
+              <canvas id="heatCanvas"></canvas>
+              <div class="campus-label">河海大学江宁校区</div>
+              <div id="markerLayer"></div>
+              <div id="mapCallout" class="map-callout hidden"></div>
+              <div id="coordBar">经度: 118.785863　纬度: 31.914453</div>
+            </div>
+            <aside id="mapInfo" class="map-info"></aside>
+          </div>
+        </section>
+
+        <section id="plantsView" class="view">
+          <div class="section-actions">
+            <input id="plantSearch" placeholder="搜索名称、区域或植物种类" />
+            <button id="openPlantFormBtn" class="primary-btn admin-only">新增绿植</button>
+          </div>
+          <div id="plantGrid" class="plant-grid"></div>
+        </section>
+
+        <section id="careView" class="view">
+          <form id="careForm" class="form-grid">
+            <label>绿植对象<select id="carePlant"></select></label>
+            <label>养护类型<select id="careType">
+              <option value="watering">浇水</option>
+              <option value="pruning">修剪</option>
+              <option value="fertilizing">施肥</option>
+              <option value="inspection">巡查</option>
+              <option value="pest">病虫害处理</option>
+            </select></label>
+            <label>经度<input id="careLng" /></label>
+            <label>纬度<input id="careLat" /></label>
+            <label class="wide">地点描述<input id="careLocation" placeholder="例如：图书馆东侧香樟道" /></label>
+            <label class="wide">备注<textarea id="careNote" placeholder="记录养护情况、发现的问题或处理建议"></textarea></label>
+            <button class="secondary-btn" type="button" id="careUsePlantCoord">使用绿植坐标</button>
+            <button class="primary-btn" type="submit">提交养护打卡</button>
+          </form>
+          <div id="careList" class="record-list"></div>
+        </section>
+
+        <section id="reportsView" class="view">
+          <form id="issueForm" class="form-grid">
+            <label>关联绿植<select id="issuePlant"></select></label>
+            <label>问题类型<select id="issueType">
+              <option value="dry">缺水</option>
+              <option value="pest">病虫害</option>
+              <option value="withered">枯萎</option>
+              <option value="fallen">倒伏</option>
+              <option value="facility">支撑/围栏损坏</option>
+            </select></label>
+            <label>风险等级<select id="issueRisk">
+              <option value="low">低</option>
+              <option value="medium">中</option>
+              <option value="high">高</option>
+            </select></label>
+            <label>经度<input id="issueLng" /></label>
+            <label>纬度<input id="issueLat" /></label>
+            <label class="wide">问题描述<textarea id="issueDesc" placeholder="请描述现象、范围和建议处理方式"></textarea></label>
+            <button class="secondary-btn" type="button" id="issueUsePlantCoord">使用绿植坐标</button>
+            <button class="primary-btn" type="submit">提交问题上报</button>
+          </form>
+          <div id="issueList" class="record-list"></div>
+        </section>
+
+        <section id="dashboardView" class="view">
+          <div id="metricGrid" class="metric-grid"></div>
+          <div class="charts">
+            <div class="chart-box"><h3>近 7 天养护趋势</h3><canvas id="trendChart"></canvas></div>
+            <div class="chart-box"><h3>绿植类型分布</h3><canvas id="typeChart"></canvas></div>
+            <div class="chart-box"><h3>健康状态分布</h3><canvas id="healthChart"></canvas></div>
+            <div class="chart-box"><h3>养护排行榜</h3><div id="rankList"></div></div>
+          </div>
+        </section>
+
+        <section id="profileView" class="view">
+          <div id="profileSummary" class="profile-summary"></div>
+          <h3>我的收藏</h3>
+          <div id="favoriteGrid" class="plant-grid compact"></div>
+          <h3>校园植物图鉴</h3>
+          <div id="albumGrid" class="album-grid"></div>
+        </section>
+
+        <section id="adminView" class="view">
+          <div class="admin-tabs">
+            <button class="tab active" data-admin-tab="plantAdmin">绿植管理</button>
+            <button class="tab" data-admin-tab="careAdmin">养护审核</button>
+            <button class="tab" data-admin-tab="issueAdmin">问题审核</button>
+            <button class="tab" data-admin-tab="userAdmin">用户管理</button>
+          </div>
+          <div id="plantAdmin" class="admin-panel active"></div>
+          <div id="careAdmin" class="admin-panel"></div>
+          <div id="issueAdmin" class="admin-panel"></div>
+          <div id="userAdmin" class="admin-panel"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <button id="closeModal" class="icon-btn">×</button>
+        <div id="modalContent"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
